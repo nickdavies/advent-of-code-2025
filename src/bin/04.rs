@@ -73,8 +73,36 @@ pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::
     Ok(Some(out))
 }
 
-pub fn part_two(_input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::Error> {
-    Ok(None)
+pub fn part_two(input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::Error> {
+    let mut map: Map<Tile> = input.try_into().context("failed to parse map")?;
+
+    let mut out = 0;
+    let mut removed = true;
+    while removed {
+        let mut to_remove = Vec::new();
+        for row in map.iter() {
+            for (loc, value) in row {
+                if value == &Tile::Empty {
+                    continue;
+                }
+
+                let mut count = 0;
+                count += get_left_right(&map, Some(loc.clone()), false);
+                count += get_left_right(&map, map.go_direction(&loc, &Direction::North), true);
+                count += get_left_right(&map, map.go_direction(&loc, &Direction::South), true);
+                if count < 4 {
+                    out += 1;
+                    to_remove.push(loc.clone());
+                }
+            }
+        }
+
+        removed = !to_remove.is_empty();
+        for loc in to_remove {
+            *map.get_mut(&loc) = Tile::Empty;
+        }
+    }
+    Ok(Some(out))
 }
 
 #[cfg(test)]
