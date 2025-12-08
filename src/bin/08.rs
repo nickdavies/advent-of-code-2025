@@ -61,11 +61,15 @@ pub fn part_one(input: &str, run_type: RunType) -> Result<Option<usize>, anyhow:
     let dists_count = dists.len();
     println!("dists={dists_count:?}");
 
-    let mut connections = 1;
+    let mut connections = 0;
     let mut next_id = 0;
     let mut circuits = BTreeMap::new();
     let mut point_to_circuit: BTreeMap<Point, usize> = BTreeMap::new();
     for (a, b, dist) in dists {
+        connections += 1;
+        if connections > max_connections {
+            break;
+        }
         println!("a={a:?}, b={b:?}, dist={dist}, connections={connections}");
 
         match (point_to_circuit.get(a), point_to_circuit.get(b)) {
@@ -112,10 +116,6 @@ pub fn part_one(input: &str, run_type: RunType) -> Result<Option<usize>, anyhow:
                 circuits.insert(next_id, c1);
                 next_id += 1;
             }
-        }
-        connections += 1;
-        if connections >= max_connections {
-            break;
         }
     }
 
