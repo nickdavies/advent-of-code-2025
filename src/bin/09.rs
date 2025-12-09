@@ -8,6 +8,73 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, anyhow};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EdgeType {
+    Vertical,
+    Horizontal,
+    TopLeft,
+    BottomLeft,
+    TopRight,
+    BottomRight,
+}
+
+impl EdgeType {
+    fn to_char(&self) -> char {
+        match self {
+            Self::Vertical => '│',
+            Self::Horizontal => '─',
+            Self::TopLeft => '┌',
+            Self::BottomLeft => '└',
+            Self::TopRight => '┐',
+            Self::BottomRight => '┘',
+        }
+    }
+
+    fn directions(&self) -> [Direction; 2] {
+        match self {
+            Self::Vertical => [Direction::North, Direction::South],
+            Self::Horizontal => [Direction::East, Direction::West],
+            Self::TopLeft => [Direction::North, Direction::East],
+            Self::BottomLeft => [Direction::North, Direction::West],
+            Self::TopRight => [Direction::South, Direction::East],
+            Self::BottomRight => [Direction::South, Direction::West],
+        }
+    }
+
+    fn has_direction(&self, direction: &Direction) -> bool {
+        self.directions().contains(direction)
+    }
+
+    fn from_directions(first: &Direction, second: &Direction) -> Self {
+        match first {
+            Direction::North => match second {
+                Direction::North => EdgeType::Vertical,
+                Direction::South => EdgeType::Vertical,
+                Direction::East => EdgeType::TopLeft,
+                Direction::West => EdgeType::TopRight,
+            },
+            Direction::South => match second {
+                Direction::North => EdgeType::Vertical,
+                Direction::South => EdgeType::Vertical,
+                Direction::East => EdgeType::BottomLeft,
+                Direction::West => EdgeType::BottomRight,
+            },
+            Direction::East => match second {
+                Direction::North => EdgeType::BottomRight,
+                Direction::South => EdgeType::TopRight,
+                Direction::East => EdgeType::Horizontal,
+                Direction::West => EdgeType::Horizontal,
+            },
+            Direction::West => match second {
+                Direction::North => EdgeType::BottomLeft,
+                Direction::South => EdgeType::TopLeft,
+                Direction::East => EdgeType::Horizontal,
+                Direction::West => EdgeType::Horizontal,
+            },
+        }
+    }
+}
+
 pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<u64>, anyhow::Error> {
     let raw: Vec<(i64, i64)> = parse_input(
         LineSplitter,
@@ -37,14 +104,14 @@ pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<u64>, anyhow::
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Tile {
+enum Tile {
     Empty,
-    Edge,
+    Edge(EdgeType),
     Inner,
     Outer,
 }
 
-fn fill(map: &mut Map<Tile>, start: Location) {
+fn flood_fill(map: &mut Map<Tile>, start: Location) {
     let mut to_visit = vec![start];
 
     while let Some(current) = to_visit.pop() {
@@ -63,6 +130,179 @@ fn fill(map: &mut Map<Tile>, start: Location) {
             }
         }
     }
+}
+//
+// fn hacky_fill(map: &mut Map<Tile>) -> Result<()> {
+//     let width = map.width().context("failed to get width")?;
+//     for row in 0..map.0.len() {
+//         let mut inside = false;
+//         let prev_special = false;
+//         for col in 0..width {
+//             let loc = Location(row, col);
+//             if let Tile::Edge(edge_type) = map.get(&loc) {
+//                 prev_special = true;
+//             } else {
+//                 // If the last spot was a special tile aka edge we need to see if there
+//                 if prev_special {}
+//                 if inside {
+//                     *map.get_mut(&loc) = Tile::Inner;
+//                 } else {
+//                     *map.get_mut(&loc) = Tile::Outer;
+//                 }
+//             }
+//         }
+//     }
+//
+//     Ok()
+// }
+
+fn fill(map: &mut Map<Tile>) -> Result<()> {
+    let width = map.width().context("failed to get width")?;
+    for row in 0..map.0.len() {
+        let mut inside = false;
+        let mut inside_dir: Option<Direction> = None;
+        for col in 0..width {
+            let loc = Location(row, col);
+            if let Tile::Edge(edge_type) = map.get(&loc) {
+                match edge_type {
+                    EdgeType::Vertical => inside = !inside,
+                    EdgeType::Horizontal => {}
+                    EdgeType::TopLeft => {
+                        if inside {
+                            inside_dir = Some(Direction::North);
+                        } else {
+                            inside_dir = Some(Direction::South);
+                        }
+                    }
+                    EdgeType::BottomLeft => {
+                        if inside {
+                            inside_dir = Some(Direction::South);
+                        } else {
+                            inside_dir = Some(Direction::North);
+                        }
+                    }
+                    EdgeType::TopRight => match inside_dir {
+                        Some(Direction::North) => {
+                            inside = true;
+                        }
+                        Some(Direction::South) => {
+                            inside = false;
+                        }
+                        _ => {}
+                    },
+                    EdgeType::BottomRight => match inside_dir {
+                        Some(Direction::North) => {
+                            inside = false;
+                        }
+                        Some(Direction::South) => {
+                            inside = true;
+                        }
+                        _ => {}
+                    },
+                }
+                // entry = match edge_type {
+                //     // If we cross a vertical line we go from inside to outside or the other way
+                //     // around
+                //     EdgeType::Vertical => {
+                //         if entry.is_none() {
+                //             Some(EdgeType::Vertical)
+                //         } else {
+                //             None
+                //         }
+                //     }
+                //     // We are iterating current across rows so this has no effect
+                //     EdgeType::Horizontal => entry,
+                //     EdgeType::TopLeft => Some(EdgeType::TopLeft),
+                //     EdgeType::BottomLeft => Some(EdgeType::BottomLeft),
+                //     EdgeType::TopRight => match entry {
+                //         None => {
+                //             return Err(anyhow!(
+                //                 "somehow found southeast corner while outside at {loc:?}"
+                //             ));
+                //         }
+                //         Some(EdgeType::TopLeft) => entry,
+                //         Some(EdgeType::BottomLeft) => entry,
+                //         Some(other) => {
+                //             return Err(anyhow!(
+                //                 "got unexpected entry {other:?} at {loc:?} from TopRight"
+                //             ));
+                //         }
+                //     },
+                //     EdgeType::BottomRight => match entry {
+                //         None => {
+                //             return Err(anyhow!(
+                //                 "somehow found southeast corner while outside at {loc:?}"
+                //             ));
+                //         }
+                //         Some(EdgeType::TopLeft) => entry,
+                //         Some(EdgeType::BottomLeft) => entry,
+                //         Some(other) => {
+                //             return Err(anyhow!(
+                //                 "got unexpected entry {other:?} at {loc:?} from BottomRight"
+                //             ));
+                //         }
+                //     },
+                // };
+            } else {
+                if inside {
+                    *map.get_mut(&loc) = Tile::Inner;
+                } else {
+                    *map.get_mut(&loc) = Tile::Outer;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+fn make_path(mut points: Vec<UnboundLocation>) -> Result<Vec<(UnboundLocation, EdgeType)>> {
+    let first = points
+        .first()
+        .context("must have at least 2 element for make_path")?
+        .clone();
+    let last = points
+        .last()
+        .context("must have at least 2 element for make_path")?
+        .clone();
+
+    if first == last {
+        return Err(anyhow!("first == last we need 2 elements"));
+    }
+
+    points.push(
+        points
+            .first()
+            .context("must have at least 1 element for make_path")?
+            .clone(),
+    );
+
+    let mut prev_direction = last
+        .direction_between(&first)
+        .context("failed to get initial direction")?;
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for slice in points.windows(2) {
+        let mut current = slice[0].clone();
+        let end = slice[1].clone();
+        let dir = current
+            .direction_between(&end)
+            .context("expected to find route between path points")?;
+
+        while current != end {
+            if !seen.contains(&current) {
+                let edge_type = EdgeType::from_directions(&prev_direction, &dir);
+                // println!(
+                //     "{current:?}: {prev_direction:?} -> {dir:?} = {edge_type:?}:{}",
+                //     edge_type.to_char()
+                // );
+                out.push((current.clone(), edge_type));
+                seen.insert(current.clone());
+            }
+            current = current.go_direction(&dir, 1).clone();
+            prev_direction = dir.clone();
+        }
+    }
+
+    Ok(out)
 }
 
 fn valid_path(map: &Map<Tile>, start: &Location, end: &Location) -> bool {
@@ -98,78 +338,90 @@ fn valid_path(map: &Map<Tile>, start: &Location, end: &Location) -> bool {
     true
 }
 
+fn find_inside(map: &Map<Tile>) -> Option<Location> {
+    for row in map.iter() {
+        for (col, val) in row {
+            if let Tile::Edge(edge_type) = val {
+                if edge_type == &EdgeType::Vertical {
+                    if let Some(right) = map.go_direction(&col, &Direction::East) {
+                        if let Tile::Edge(_) = map.get(&right) {
+                        } else {
+                            return Some(right);
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn part_two(input: &str, _run_type: RunType) -> Result<Option<usize>, anyhow::Error> {
-    let mut raw: Vec<(usize, usize)> = parse_input(
+    let raw: Vec<(i64, i64)> = parse_input(
         LineSplitter,
         ParseTuple2(ParseFromStr, ParseFromStr, ","),
         input,
     )
     .context("failed to parse input")?;
 
-    let mut points: Vec<Location> = raw.iter().map(|(x, y)| Location(*y, *x)).collect();
+    let points: Vec<UnboundLocation> = raw.iter().map(|(x, y)| UnboundLocation(*y, *x)).collect();
 
-    let max_x = raw
+    let max_x: usize = raw
         .iter()
         .map(|(x, _)| *x)
         .max()
-        .context("must find max x")?;
-    let max_y = raw
+        .context("must find max x")?
+        .try_into()
+        .context("expected max_x to be positive")?;
+    let max_y: usize = raw
         .iter()
         .map(|(_, y)| *y)
         .max()
-        .context("must find max y")?;
+        .context("must find max y")?
+        .try_into()
+        .context("expected max_y to be positive")?;
 
     // Adding +1 ensures that we have an outer spot to start from at the bottom right corner
     let mut map = Map::<Tile>::from_dimensions(max_y + 2, max_x + 2, |_| Tile::Inner);
-    let mut points_extra = points.clone();
-    points_extra.push(
-        points
-            .first()
-            .context("required to have at least 1 element")?
-            .clone(),
-    );
-    for slice in points_extra.windows(2) {
-        let mut current = slice[0].clone();
-        let end = slice[1].clone();
-        let dir = current
-            .direction_between(&end)
-            .context("expected to find route between path points")?;
-        *map.get_mut(&end) = Tile::Edge;
-        while current != end {
-            *map.get_mut(&current) = Tile::Edge;
-            current = map
-                .go_direction(&current, &dir)
-                .context("unexpectedly ran out of bounds")?
-                .clone();
-        }
+
+    let mut path = Vec::new();
+    for (point, edge) in make_path(points.clone()).context("failed to make path")? {
+        let loc = point
+            .to_bounded(&map)
+            .context("expected point to be inside map")?;
+
+        *map.get_mut(&loc) = Tile::Edge(edge);
+        path.push(loc);
     }
 
     let bottom_right = map
         .bottom_right()
         .context("expected to find bottom right")?;
 
+    // flood_fill(&mut map, bottom_right);
+    fill(&mut map).context("failed to fill")?;
+    println!("filled!");
     // map.print(|v, _| match v {
     //     Tile::Empty => '.',
     //     Tile::Inner => 'I',
     //     Tile::Outer => 'o',
-    //     Tile::Edge => '#',
-    // });
-    println!("{:?}", bottom_right);
-    return Ok(Some(0));
-    fill(&mut map, bottom_right);
-
-    // map.print(|v, _| match v {
-    //     Tile::Empty => '.',
-    //     Tile::Inner => 'I',
-    //     Tile::Outer => 'o',
-    //     Tile::Edge => '#',
+    //     Tile::Edge(e) => e.to_char(),
     // });
 
-    // let mut dists = Vec::new();
     let mut max_dist: Option<(usize, Location, Location)> = None;
-    points.sort();
-    for a in points.iter() {
-        for b in points.iter() {
+    let mut bound_points = Vec::new();
+    for point in points {
+        bound_points.push(
+            point
+                .to_bounded(&map)
+                .context("expected point to be inside map")?,
+        )
+    }
+    bound_points.sort();
+    for a in bound_points.iter() {
+        for b in bound_points.iter() {
             if a <= b {
                 break;
             }
@@ -212,6 +464,16 @@ mod tests_day_9 {
         let expected = Some(24);
         let input = &advent_of_code::template::read_file_part("examples", DAY, 2);
         assert!(expected.is_none() || !input.is_empty(), "example 2 empty!");
+        let result = part_two(input, RunType::Example)?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_part_two_2() -> anyhow::Result<()> {
+        let expected = Some(1281);
+        let input = &advent_of_code::template::read_file_part("examples", DAY, 3);
+        assert!(expected.is_none() || !input.is_empty(), "example 3 empty!");
         let result = part_two(input, RunType::Example)?;
         assert_eq!(result, expected);
         Ok(())
