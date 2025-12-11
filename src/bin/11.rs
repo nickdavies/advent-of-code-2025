@@ -13,7 +13,6 @@ fn count_paths_inner(
     graph: &BTreeMap<String, Vec<String>>,
     current: String,
     target: String,
-    seen: &mut BTreeSet<String>,
     cache: &mut BTreeMap<String, usize>,
 ) -> usize {
     if current == target {
@@ -23,14 +22,10 @@ fn count_paths_inner(
     if let Some(cached) = cache.get(&current) {
         return *cached;
     }
-    if seen.contains(&current) {
-        return 0;
-    }
-    seen.insert(current.to_string());
     let mut out = 0;
     if let Some(options) = graph.get(&current) {
         for option in options {
-            out += count_paths_inner(graph, option.clone(), target.clone(), seen, cache);
+            out += count_paths_inner(graph, option.clone(), target.clone(), cache);
         }
     }
 
@@ -43,7 +38,6 @@ fn count_paths(graph: &BTreeMap<String, Vec<String>>, start: &str, target: &str)
         graph,
         start.to_string(),
         target.to_string(),
-        &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )
 }
