@@ -16,3 +16,4 @@ maplit = "1.0.2"
 nom = "8.0.0"
 thiserror = "2.0.17"
 aoc-lib = { git = "https://github.com/nickdavies/aoc-lib.git" }
+microlp = "0.2.11"
