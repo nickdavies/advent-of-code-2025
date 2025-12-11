@@ -3,6 +3,8 @@ advent_of_code::solution!(10);
 
 use advent_of_code::template::RunType;
 
+use microlp::{ComparisonOp, OptimizationDirection, Problem};
+
 use anyhow::{Context, Result, anyhow};
 use aoc_lib::grid::{CountingMap, Direction, Location, Map};
 use aoc_lib::parse::Parser;
@@ -254,18 +256,60 @@ pub fn part_two(input: &str, _run_type: RunType) -> Result<Option<i64>, anyhow::
     let machines: Vec<Machine> =
         parse_input(LineSplitter, ParseFromStr, input).context("failed to parse input")?;
 
-    let mut out = 0;
-    for machine in machines {
-        println!("machine={machine:?}");
-        let combo = machine
-            .press_joltage_combinations(20)
-            .context("failed to find combo")?;
+    let max_cost = 1000;
 
-        out += -combo.cost;
-        println!("combo={combo:?}");
+    let mut out = 0;
+    for machine in machines.iter() {
+        let mut problem = Problem::new(OptimizationDirection::Minimize);
+        println!("joltages={:?}", machine.joltages);
+
+        // We need 1 variable per button we can possibly press
+        let mut press_count_vars = Vec::new();
+        for _ in machine.joltage_buttons.iter() {
+            press_count_vars.push(problem.add_integer_var(1.0, (0, max_cost)));
+        }
+
+        for (idx, target_joltage) in machine.joltages.iter().enumerate() {
+            let mut constraints = Vec::new();
+            for (buttons, &var) in machine.joltage_buttons.iter().zip(press_count_vars.iter()) {
+                constraints.push((var, buttons.buttons[idx] as f64));
+                // println!(" - {:?}", buttons);
+            }
+            println!(" - {constraints:?}=={target_joltage}");
+            problem.add_constraint(constraints, ComparisonOp::Eq, *target_joltage as f64);
+        }
+
+        println!("problem={problem:?}");
+        let solution = problem.solve().context("failed to solve problem")?;
+        let cost = solution.objective().round() as usize;
+        let mut path = Vec::new();
+        println!("{}", solution.objective());
+        for var in press_count_vars.iter() {
+            path.push(solution.var_value_rounded(*var) as i64);
+        }
+        println!("{path:?}");
+        let mut manual_cost = 0;
+        let mut joltages = vec![0; machine.joltages.len()];
+        for (presses, buttons) in path.iter().zip(machine.joltage_buttons.iter()) {
+            let ipresses = *presses as usize;
+            manual_cost += ipresses;
+            print!("press={buttons:?} {presses} times {joltages:?} ->");
+            for (idx, button) in buttons.buttons.iter().enumerate() {
+                joltages[idx] += button * ipresses;
+            }
+            println!(" {joltages:?}");
+        }
+        if joltages != machine.joltages || cost != manual_cost {
+            println!(
+                " {joltages:?} != {:?} || {cost} != {manual_cost}",
+                machine.joltages
+            );
+            return Err(anyhow!("oh no!"));
+        }
+        out += cost;
     }
 
-    Ok(Some(out))
+    Ok(Some(out as i64))
 }
 
 #[cfg(test)]
