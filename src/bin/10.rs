@@ -37,15 +37,6 @@ struct JoltageButtons {
     buttons: Vec<usize>,
 }
 
-impl JoltageButtons {
-    fn apply_to(&self, mut other: Vec<usize>) -> Vec<usize> {
-        for (idx, value) in self.buttons.iter().enumerate() {
-            other[idx] += value;
-        }
-        other
-    }
-}
-
 #[derive(Debug, Clone)]
 struct Machine {
     lights: Vec<bool>,
@@ -108,64 +99,6 @@ impl Machine {
 
         Err(anyhow!("ran out of options!"))
     }
-
-    fn press_joltage_combinations(&self, max_cost: usize) -> Result<Item<Vec<usize>>> {
-        let mut next = BinaryHeap::new();
-        let mut seen = BTreeSet::new();
-
-        next.push(Item {
-            cost: 0,
-            target: vec![0; self.joltages.len()],
-            path: Vec::new(),
-        });
-
-        while let Some(item) = next.pop() {
-            seen.insert(item.target.clone());
-            if item.target == self.joltages {
-                return Ok(item);
-            }
-
-            if item.cost < -(max_cost as i64) {
-                return Err(anyhow!("reached max cost!"));
-            }
-
-            let mut delta = Vec::new();
-            let mut at_target = Vec::new();
-            let mut invalid = false;
-            for (idx, (a, b)) in self.joltages.iter().zip(item.target.iter()).enumerate() {
-                if a == b {
-                    at_target.push(idx);
-                } else if b < a {
-                    delta.push(idx);
-                } else if b > a {
-                    invalid = true;
-                    break;
-                }
-            }
-            if invalid {
-                continue;
-            }
-
-            for (i, buttons) in self.joltage_buttons.iter().enumerate() {
-                let any_helpful = delta.iter().any(|idx| buttons.buttons[*idx] != 0);
-                let any_harmful = at_target.iter().any(|idx| buttons.buttons[*idx] != 0);
-
-                if any_helpful && !any_harmful {
-                    let mut new = item.clone();
-                    new.cost -= 1;
-                    new.target = buttons.apply_to(new.target);
-                    if seen.contains(&new.target) {
-                        continue;
-                    }
-                    new.path.push(i);
-
-                    next.push(new);
-                }
-            }
-        }
-
-        Err(anyhow!("ran out of options!"))
-    }
 }
 
 impl std::str::FromStr for Machine {
@@ -191,37 +124,26 @@ impl std::str::FromStr for Machine {
         let mut light_buttons = Vec::new();
         let mut joltage_buttons = Vec::new();
         for section in rest.split(" ") {
-            match section
-                .chars()
-                .next()
-                .context("expected non-empty section")?
-            {
-                '(' => {
-                    let parser = StripPrefix(StripSuffix(SplitDelim(ParseFromStr, ","), ")"), "(");
-                    let raw_buttons: Vec<usize> = parser
-                        .parse_section(section)
-                        .context("failed to parse buttons section")?;
+            let parser = StripPrefix(StripSuffix(SplitDelim(ParseFromStr, ","), ")"), "(");
+            let raw_buttons: Vec<usize> = parser
+                .parse_section(section)
+                .context("failed to parse buttons section")?;
 
-                    let mut new_light_buttons = vec![false; lights.len()];
-                    let mut new_joltage_buttons = vec![0; joltages.len()];
-                    for button in raw_buttons.iter() {
-                        new_light_buttons[*button] = true;
-                        new_joltage_buttons[*button] = 1;
-                    }
-
-                    light_buttons.push(LightButtons {
-                        buttons: new_light_buttons,
-                    });
-
-                    new_joltage_buttons.resize(joltages.len(), 0);
-                    joltage_buttons.push(JoltageButtons {
-                        buttons: new_joltage_buttons,
-                    });
-                }
-                _ => {
-                    return Err(anyhow!("got unexpected section: {}", section));
-                }
+            let mut new_light_buttons = vec![false; lights.len()];
+            let mut new_joltage_buttons = vec![0; joltages.len()];
+            for button in raw_buttons.iter() {
+                new_light_buttons[*button] = true;
+                new_joltage_buttons[*button] = 1;
             }
+
+            light_buttons.push(LightButtons {
+                buttons: new_light_buttons,
+            });
+
+            new_joltage_buttons.resize(joltages.len(), 0);
+            joltage_buttons.push(JoltageButtons {
+                buttons: new_joltage_buttons,
+            });
         }
 
         Ok(Machine {
@@ -237,8 +159,6 @@ pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<i64>, anyhow::
     let machines: Vec<Machine> =
         parse_input(LineSplitter, ParseFromStr, input).context("failed to parse input")?;
 
-    println!("machines={machines:?}");
-
     let mut out = 0;
     for machine in machines {
         let combo = machine
@@ -246,7 +166,6 @@ pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<i64>, anyhow::
             .context("failed to find combo")?;
 
         out += -combo.cost;
-        println!("combo={combo:?}");
     }
 
     Ok(Some(out))
@@ -261,7 +180,6 @@ pub fn part_two(input: &str, _run_type: RunType) -> Result<Option<i64>, anyhow::
     let mut out = 0;
     for machine in machines.iter() {
         let mut problem = Problem::new(OptimizationDirection::Minimize);
-        println!("joltages={:?}", machine.joltages);
 
         // We need 1 variable per button we can possibly press
         let mut press_count_vars = Vec::new();
@@ -269,44 +187,19 @@ pub fn part_two(input: &str, _run_type: RunType) -> Result<Option<i64>, anyhow::
             press_count_vars.push(problem.add_integer_var(1.0, (0, max_cost)));
         }
 
+        // We then constrain the sum of the button presses (times if they are 1 or 0) to be less
+        // than the target joltage.
         for (idx, target_joltage) in machine.joltages.iter().enumerate() {
             let mut constraints = Vec::new();
             for (buttons, &var) in machine.joltage_buttons.iter().zip(press_count_vars.iter()) {
                 constraints.push((var, buttons.buttons[idx] as f64));
-                // println!(" - {:?}", buttons);
             }
-            println!(" - {constraints:?}=={target_joltage}");
             problem.add_constraint(constraints, ComparisonOp::Eq, *target_joltage as f64);
         }
 
-        println!("problem={problem:?}");
         let solution = problem.solve().context("failed to solve problem")?;
-        let cost = solution.objective().round() as usize;
-        let mut path = Vec::new();
-        println!("{}", solution.objective());
-        for var in press_count_vars.iter() {
-            path.push(solution.var_value_rounded(*var) as i64);
-        }
-        println!("{path:?}");
-        let mut manual_cost = 0;
-        let mut joltages = vec![0; machine.joltages.len()];
-        for (presses, buttons) in path.iter().zip(machine.joltage_buttons.iter()) {
-            let ipresses = *presses as usize;
-            manual_cost += ipresses;
-            print!("press={buttons:?} {presses} times {joltages:?} ->");
-            for (idx, button) in buttons.buttons.iter().enumerate() {
-                joltages[idx] += button * ipresses;
-            }
-            println!(" {joltages:?}");
-        }
-        if joltages != machine.joltages || cost != manual_cost {
-            println!(
-                " {joltages:?} != {:?} || {cost} != {manual_cost}",
-                machine.joltages
-            );
-            return Err(anyhow!("oh no!"));
-        }
-        out += cost;
+        // Because the solver is all in floats we round back to an int.
+        out += solution.objective().round() as usize;
     }
 
     Ok(Some(out as i64))
