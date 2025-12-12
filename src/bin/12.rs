@@ -30,7 +30,7 @@ pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::
     )
     .context("failed to parse input")?;
 
-    let mut presents: BTreeMap<usize, BTreeMap<Direction, Map<bool>>> = BTreeMap::new();
+    let mut presents = Vec::new();
     for section in raw_presents.split("\n\n") {
         let (id, char_grid) = section
             .split_once(":\n")
@@ -40,25 +40,29 @@ pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::
 
         println!("id={id}");
         north.print(|v, _| if *v { '#' } else { '.' });
-        let id = id.parse().context("failed to parse id")?;
 
-        let east = rotate_map(&north);
-        let south = rotate_map(&east);
-        let west = rotate_map(&south);
-
-        let mut rotated = BTreeMap::new();
-        rotated.insert(Direction::North, north);
-        rotated.insert(Direction::East, east);
-        rotated.insert(Direction::South, south);
-        rotated.insert(Direction::West, west);
-        presents.insert(id, rotated);
+        let count = char_grid.chars().filter(|c| *c == '#').count();
+        presents.push(count);
     }
 
     println!("{presents:?}");
     println!("{ranges:?}");
-    for range in ranges {}
+    let mut out = 0;
+    for ((x, y), counts) in ranges {
+        let total = x * y;
+        let mut used = 0;
+        for (count, present_count) in counts.iter().zip(presents.iter()) {
+            used += count * present_count;
+            if used > total {
+                break;
+            }
+        }
+        if used < total {
+            out += 1;
+        }
+    }
 
-    Ok(None)
+    Ok(Some(out))
 }
 
 pub fn part_two(_input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::Error> {
