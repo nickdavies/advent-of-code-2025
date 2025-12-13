@@ -1,8 +1,6 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(1);
 
 use anyhow::{Context, Result, anyhow};
-use std::cmp::Ordering;
 
 use advent_of_code::template::RunType;
 

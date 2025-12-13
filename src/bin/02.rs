@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(2);
 
 use anyhow::{Context, Result, anyhow};

@@ -1,11 +1,9 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(6);
 
 use advent_of_code::template::RunType;
 
 use anyhow::{Context, Result, anyhow};
 use aoc_lib::parse::preamble::*;
-use itertools::{EitherOrBoth, Itertools};
 use std::str::FromStr;
 
 #[derive(Debug)]

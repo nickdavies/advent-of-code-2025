@@ -1,9 +1,7 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(7);
 
 use advent_of_code::template::RunType;
 use aoc_lib::grid::{CountingMap, Direction, Location, Map};
-use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow};
 

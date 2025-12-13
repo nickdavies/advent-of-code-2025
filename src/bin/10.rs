@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(10);
 
 use advent_of_code::template::RunType;
@@ -6,11 +5,10 @@ use advent_of_code::template::RunType;
 use microlp::{ComparisonOp, OptimizationDirection, Problem};
 
 use anyhow::{Context, Result, anyhow};
-use aoc_lib::grid::{CountingMap, Direction, Location, Map};
 use aoc_lib::parse::Parser;
 use aoc_lib::parse::preamble::*;
+use std::collections::BTreeSet;
 use std::collections::BinaryHeap;
-use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 struct LightButtons {

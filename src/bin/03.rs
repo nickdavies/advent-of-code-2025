@@ -1,12 +1,10 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(3);
 
 use advent_of_code::template::RunType;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use aoc_lib::grid::{Location, Map};
 use aoc_lib::parse::preamble::*;
-use std::collections::BTreeSet;
 
 fn cached_seek(
     input: &[u64],

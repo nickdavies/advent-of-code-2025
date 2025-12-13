@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(4);
 
 use advent_of_code::template::RunType;

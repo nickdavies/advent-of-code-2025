@@ -1,11 +1,8 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(12);
 
 use advent_of_code::template::RunType;
 
-use aoc_lib::grid::{Direction, Location, Map};
 use aoc_lib::parse::preamble::*;
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
 use anyhow::{Context, Result, anyhow};
 

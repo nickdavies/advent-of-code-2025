@@ -1,11 +1,8 @@
-#![allow(unused_imports)]
 advent_of_code::solution!(5);
 
 use advent_of_code::template::RunType;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use aoc_lib::parse::preamble::*;
-use itertools::{EitherOrBoth, Itertools};
-use std::str::FromStr;
 
 pub fn part_one(input: &str, _run_type: RunType) -> Result<Option<u32>, anyhow::Error> {
     let (sec1, sec2) = input.split_once("\n\n").context("failed to split input")?;
